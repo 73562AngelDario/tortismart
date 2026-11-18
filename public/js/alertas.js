@@ -40,11 +40,18 @@ async function cambiarPassEmpleado(){
   flash('Contraseña del empleado actualizada. Avísale la nueva contraseña.')}
  catch(e){flash(e.message||'No se pudo cambiar la contraseña','err')}
  render()}
+function numWA(){let n=String(DB.config.whatsapp||'').replace(/\D/g,'');if(n.length===10)n='52'+n;return n}
 async function enviarWA(t){
- if(!DB.config.whatsapp){flash('Registra primero el número de WhatsApp','err');return render()}
- try{await api('/whatsapp',{method:'POST',body:JSON.stringify({phone:DB.config.whatsapp,texto:'TortiSmart: '+t})});
+ const num=numWA();
+ if(!num){flash('Registra primero el número de WhatsApp','err');return render()}
+ try{await api('/whatsapp',{method:'POST',body:JSON.stringify({phone:num,texto:'TortiSmart: '+t})});
   flash('Alerta enviada por WhatsApp')}
- catch(e){flash(e.message||'No se pudo enviar el mensaje','err')}
+ catch(e){
+  /* Si el envío automático no está disponible (servidor sin actualizar o sin clave), se abre WhatsApp como antes */
+  if(e.status===404||e.status===503){
+   window.open(`https://wa.me/${num}?text=${encodeURIComponent(t)}`,'_blank');
+   flash('Envío automático no configurado: se abrió WhatsApp para enviarlo manualmente','err')}
+  else flash(e.message||'No se pudo enviar el mensaje','err')}
  render()}
 function alertasView(){
  const al=calcAlertas();

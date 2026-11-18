@@ -260,6 +260,31 @@ app.post('/api/empleado/pass', auth, async (req, res) => {
   } catch (e) { fallo(res, e); }
 });
 
+// Enviar alerta por WhatsApp sin abrir WhatsApp (servicio CallMeBot, solo administrador)
+app.post('/api/whatsapp', auth, async (req, res) => {
+  try {
+    if (req.u.rol !== 'admin') return res.status(403).json({ error: 'Solo el administrador puede enviar alertas' });
+    const key = process.env.CALLMEBOT_APIKEY;
+    if (!key) return res.status(503).json({ error: 'Falta configurar CALLMEBOT_APIKEY en Vercel' });
+    const phone = String(req.body.phone || '').replace(/\D/g, '');
+    const texto = String(req.body.texto || '').slice(0, 500);
+    if (!phone || !texto) return res.status(400).json({ error: 'Falta el número o el mensaje' });
+
+    const url = 'https://api.callmebot.com/whatsapp.php?phone=' + encodeURIComponent('+' + phone) +
+      '&text=' + encodeURIComponent(texto) + '&apikey=' + encodeURIComponent(key);
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 15000);
+    let r, cuerpo = '';
+    try { r = await fetch(url, { signal: ctl.signal }); cuerpo = await r.text(); }
+    finally { clearTimeout(t); }
+    if (!r.ok || /error|invalid|not\s+activated/i.test(cuerpo.slice(0, 400)) && !/queued|sent/i.test(cuerpo)) {
+      console.error('CallMeBot:', r.status, cuerpo.slice(0, 300));
+      return res.status(502).json({ error: 'WhatsApp no aceptó el mensaje. Revisa el número y la clave de CallMeBot.' });
+    }
+    res.json({ ok: true });
+  } catch (e) { fallo(res, e); }
+});
+
 app.use('/api', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 
 /* ============================================================
