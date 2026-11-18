@@ -49,8 +49,7 @@ async function enviarWA(t){
  catch(e){
   /* Si el envío automático no está disponible (servidor sin actualizar o sin clave), se abre WhatsApp como antes */
   if(e.status===404||e.status===503){
-   window.open(`https://wa.me/${num}?text=${encodeURIComponent(t)}`,'_blank');
-   flash('Envío automático no configurado: se abrió WhatsApp para enviarlo manualmente','err')}
+   window.open(`https://wa.me/${num}?text=${encodeURIComponent(t)}`,'_blank')}
   else flash(e.message||'No se pudo enviar el mensaje','err')}
  render()}
 function alertasView(){
