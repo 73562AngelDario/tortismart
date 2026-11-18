@@ -19,6 +19,9 @@ const totalHarina=()=>activas().reduce((s,[k])=>s+DB.insumos[k].stock,0);
 const hoy=()=>fmtD(new Date());
 function fmtD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 const $$=n=>'$'+Number(n).toFixed(2);
+/* Límites de las alertas */
+const LIM_TORTILLA=10,LIM_PROD=2;
+const productosBajos=()=>DB.productos.filter(p=>p.activo&&p.stock<=LIM_PROD);
 function defaults(){return{
  productos:[
   {codigo:'101',nombre:'Salsa roja 250ml',precio:25,stock:20,activo:true},

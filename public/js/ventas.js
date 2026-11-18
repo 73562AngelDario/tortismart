@@ -11,6 +11,10 @@ function tortillaPanel(){
  return`<div class="card tort"><div class="row" style="align-items:center"><div><small>Tortilla disponible</small><div class="big">${fmtKg(disp)} kg</div></div>
  <div style="flex:3"><div class="bar ${pct<=15?'low':''}"><i style="width:${pct}%"></i></div>
  ${act.map((l,i)=>`<div class="lote"><span>${i===0?'<span class="tag uso">En uso</span> ':''}${MARCAS[l.marca].n} · ${fmtSacosU(l.sacos)}</span><span>quedan <b>${fmtKg(l.kgRestante)}</b> de ${fmtKg(l.kgTotal)} kg</span></div>`).join('')}</div></div></div>`}
+function resurtidoPanel(){
+ const b=productosBajos();
+ if(!b.length)return'';
+ return`<div class="alert ${b.some(p=>p.stock<=0)?'r':'y'}"><b>Por resurtir:</b> ${b.map(p=>`${esc(p.nombre)} (${p.stock<=0?'agotado':'quedan '+p.stock})`).join(' · ')}</div>`}
 function addRapido(i){const r=DB.rapidos[i];cart.push({nombre:r.n,precio:r.p,cant:1,tkg:esTortilla(r.n)?r.p/precioKg():0});render()}
 function addMonto(){
  const m=parseFloat(v('monto')),c=v('concepto');
@@ -44,13 +48,15 @@ function cobrar(){
  if(pago==='terminal'&&!confirm('¿La terminal ya mostró el pago como APROBADO?\n\nSolo confirma la venta si el pago ya se aprobó.'))return;
  const need=tortillaCart(),disp=tortillaDisp();
  if(need>0.0005&&need>disp+0.0005&&!confirm(disp<=0?`Ya no hay más tortillas registradas y esta venta necesita ${fmtKg2(need)} kg.\n¿Vender de todos modos?`:`Solo quedan ${fmtKg2(disp)} kg de tortilla registrada y esta venta necesita ${fmtKg2(need)} kg.\n¿Vender de todos modos?`))return;
- for(const i of cart)if(i.codigo){const p=DB.productos.find(x=>x.codigo===i.codigo);if(p)p.stock=Math.max(0,p.stock-i.cant)}
+ const vendidos=[];
+ for(const i of cart)if(i.codigo){const p=DB.productos.find(x=>x.codigo===i.codigo);if(p){p.stock=Math.max(0,p.stock-i.cant);vendidos.push(p)}}
  DB.ventas.push({uid:Date.now().toString(36)+Math.random().toString(36).slice(2,8),ts:new Date().toISOString(),total:t,pago,usuario:sesion.user,items:cart});
- descontarTortilla(need);
- save();cart=[];flash('Venta registrada'+(pago==='efectivo'?` · Cambio: ${$$(cambio)}`:'')+(need>0&&tortillaDisp()<=0.0005?' · Ya no hay más tortillas':''));render()}
+ descontarTortilla(need);revisarTortilla();
+ const resurtir=[...new Set(vendidos)].filter(p=>p.stock<=LIM_PROD);
+ save();cart=[];flash('Venta registrada'+(pago==='efectivo'?` · Cambio: ${$$(cambio)}`:'')+(need>0&&tortillaDisp()<=0.0005?' · Ya no hay más tortillas':'')+(resurtir.length?' · Resurtir: '+resurtir.map(p=>`${esc(p.nombre)} (quedan ${p.stock})`).join(', '):''));render()}
 function ventasView(){
  const t=total();
- return`<h2>Ventas en mostrador</h2>${tortillaPanel()}<div class="grid">
+ return`<h2>Ventas en mostrador</h2>${tortillaPanel()}${resurtidoPanel()}<div class="grid">
  <div><div class="card"><h3>Venta rápida</h3><div class="quick">${DB.rapidos.map((r,i)=>`<button onclick="addRapido(${i})">${r.n}<br><small>${$$(r.p)}</small></button>`).join('')}</div></div>
  <div class="card"><h3>Monto libre</h3><div class="row"><div><label>Concepto</label><select id="concepto"><option>Tortilla</option><option>Masa</option><option>Totopos</option></select></div>
  <div><label>Monto ($)</label><input id="monto" type="number" min="1" step="any" placeholder="Ej. 5, 6, 13" onkeydown="if(event.key==='Enter')addMonto()"></div><button onclick="addMonto()">Agregar</button></div></div>

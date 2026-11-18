@@ -22,13 +22,29 @@ function calcAlertas(){
   const st=DB.insumos[k].stock,n=sugerirCompra(k);
   if(st<=0)a.push({nivel:'r',t:`Se acabó el saco ${m.n}. Compra aprox. ${txtSacos(n)}`});
   else if(st<=cfgAviso())a.push({nivel:'y',t:`Quedan ${fmtSacosU(st)} de ${m.n}. Compra aprox. ${txtSacos(n)}`})});
- if(DB.lotes.length){const d=tortillaDisp(),t=lotesActivos().reduce((x,l)=>x+l.kgTotal,0);
+ if(DB.lotes.length){const d=tortillaDisp();
   if(d<=0.0005)a.push({nivel:'r',t:'Ya no hay más tortillas registradas. Registra una nueva producción'});
-  else if(d/t<=0.15)a.push({nivel:'y',t:`Quedan pocas tortillas: ${fmtKg(d)} kg`})}
+  else if(d<=LIM_TORTILLA+0.0005)a.push({nivel:'r',t:`Quedan solo ${fmtKg(d)} kg de tortilla (límite ${LIM_TORTILLA} kg). Registra una nueva producción`})}
  Object.entries(rendimientoDia(hoy()).por).forEach(([k,g])=>{
-  if(g.sacosReal>0&&g.kgReal/g.sacosReal<MARCAS[k].min)a.push({nivel:'y',t:`Rendimiento de hoy con ${MARCAS[k].n} (${(g.kgReal/g.sacosReal).toFixed(2)} kg/saco) por debajo del mínimo de ${MARCAS[k].min}`})});
+  if(!(g.sacosReal>0)||!MARCAS[k])return;
+  const m=MARCAS[k],meta=(m.min+m.max)/2,real=g.kgReal/g.sacosReal;
+  if(real<meta-0.0005)a.push({nivel:real<m.min?'r':'y',t:`Rendimiento de hoy con ${m.n}: ${real.toFixed(2)} kg/saco, por debajo de la meta de ${meta.toFixed(2)} kg/saco`})});
+ productosBajos().forEach(p=>a.push({nivel:p.stock<=0?'r':'y',t:p.stock<=0?`Se agotó ${p.nombre}. Resurtir`:`Quedan ${p.stock} ${p.stock===1?'unidad':'unidades'} de ${p.nombre}. Resurtir`}));
  if(!a.length)a.push({nivel:'g',t:'Sin alertas por el momento'});
  return a}
+/* Aviso automático por WhatsApp cuando la tortilla baja a 10 kg o menos.
+   Se manda una sola vez y se vuelve a armar cuando la tortilla sube de 10 kg. */
+let avisandoTort=false;
+function revisarTortilla(){
+ if(!DB.lotes.length)return;
+ const d=tortillaDisp();
+ if(d>LIM_TORTILLA+0.0005){if(DB.config.avisoTortilla)DB.config.avisoTortilla=false;return}
+ if(DB.config.avisoTortilla||avisandoTort||!numWA())return;
+ avisandoTort=true;
+ api('/whatsapp/tortilla',{method:'POST',body:JSON.stringify({kg:Math.round(d*100)/100})})
+  .then(()=>{DB.config.avisoTortilla=true;save()})
+  .catch(()=>estadoNube('No se pudo enviar el aviso de tortilla por WhatsApp','err'))
+  .finally(()=>{avisandoTort=false})}
 function guardarCfg(){
  DB.config.minHarina=parseFloat(v('mh'))||3;DB.config.avisoSaco=Math.max(0,parseFloat(v('as')));if(isNaN(DB.config.avisoSaco))DB.config.avisoSaco=2;DB.config.diasCompra=Math.max(1,parseInt(v('dc'))||7);DB.config.whatsapp=v('wa').trim();save();flash('Configuración guardada');render()}
 async function cambiarPassEmpleado(){

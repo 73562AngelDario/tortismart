@@ -40,7 +40,7 @@ function registrarProd(){
  const kgLote=kgReal>0?kgReal:kgEst;
  DB.lotes.push({id:Date.now(),marca:prodMarca,sacos:sc,kgTotal:kgLote,kgRestante:kgLote,fecha:f});
  ins.stock-=sc;
- const quedan=ins.stock;prodMarca=null;save();
+ const quedan=ins.stock;prodMarca=null;revisarTortilla();save();
  flash(`Producción registrada · ${fmtSacosU(sc)} de ${m.n} · aprox. ${fmtKg(kgEst)} kg de tortilla · Tortilla disponible: ${fmtKg(tortillaDisp())} kg`+(quedan%1?` · Queda ${fmtSacos(quedan%1)} saco abierto para mañana`:''));render()}
 
 function marcaImg(m){
@@ -172,7 +172,7 @@ function registrarMerma(){
  lotes.forEach(l=>{l.kgRestante=0});
  DB.mermas=DB.mermas||[];
  DB.mermas.push({id:Date.now(),fecha:hoy(),marca:k,sacos:sc,kgTortilla:Math.round(kgT*1000)/1000,costo,motivo,nota,usuario:sesion.user});
- mermaAbierta=false;save();
+ mermaAbierta=false;revisarTortilla();save();
  flash(`Merma registrada · ${fmtSacosU(sc)} de ${MARCAS[k].n}`+(kgT>0?` · ${fmtKg(kgT)} kg de tortilla tirada`:'')+(costo>0?` · Pérdida ${$$(costo)}`:''));render()}
 
 /* --- Compras de ejemplo de septiembre y octubre (solo historial: NO cambian las existencias) --- */
