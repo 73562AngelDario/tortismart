@@ -20,8 +20,9 @@ const hoy=()=>fmtD(new Date());
 function fmtD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 const $$=n=>'$'+Number(n).toFixed(2);
 /* Límites de las alertas */
-const LIM_TORTILLA=10,LIM_PROD=2;
-const productosBajos=()=>DB.productos.filter(p=>p.activo&&p.stock<=LIM_PROD);
+const limTortilla=()=>{const n=parseFloat(DB.config.limTortilla);return n>0?n:10};
+const limProd=()=>{const n=parseFloat(DB.config.limProd);return isNaN(n)||n<0?2:n};
+const productosBajos=()=>DB.productos.filter(p=>p.activo&&p.stock<=limProd());
 function defaults(){return{
  productos:[
   {codigo:'101',nombre:'Salsa roja 250ml',precio:25,stock:20,activo:true},

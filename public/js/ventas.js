@@ -52,7 +52,7 @@ function cobrar(){
  for(const i of cart)if(i.codigo){const p=DB.productos.find(x=>x.codigo===i.codigo);if(p){p.stock=Math.max(0,p.stock-i.cant);vendidos.push(p)}}
  DB.ventas.push({uid:Date.now().toString(36)+Math.random().toString(36).slice(2,8),ts:new Date().toISOString(),total:t,pago,usuario:sesion.user,items:cart});
  descontarTortilla(need);revisarTortilla();
- const resurtir=[...new Set(vendidos)].filter(p=>p.stock<=LIM_PROD);
+ const resurtir=[...new Set(vendidos)].filter(p=>p.stock<=limProd());
  save();cart=[];flash('Venta registrada'+(pago==='efectivo'?` · Cambio: ${$$(cambio)}`:'')+(need>0&&tortillaDisp()<=0.0005?' · Ya no hay más tortillas':'')+(resurtir.length?' · Resurtir: '+resurtir.map(p=>`${esc(p.nombre)} (quedan ${p.stock})`).join(', '):''));render()}
 function ventasView(){
  const t=total();

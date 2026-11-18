@@ -32,7 +32,7 @@ function productosView(){
  <br><button onclick="entradaProd()">Sumar a existencias</button></div></div>
  <div class="card"><div class="row"><div><label>Buscar por código o nombre</label><input value="${filtro}" oninput="filtro=this.value;render();const i=document.querySelector('[data-s]');i.focus();i.setSelectionRange(99,99)" data-s></div></div><br>
  <table><tr><th>Código</th><th>Nombre</th><th>Precio</th><th>Existencia</th><th>Estado</th><th></th></tr>
- ${lista.map(p=>`<tr><td>${p.codigo}</td><td>${p.nombre}</td><td>${$$(p.precio)}</td><td>${p.stock}${p.activo&&p.stock<=LIM_PROD?` <span class="tag">${p.stock<=0?'Agotado':'Resurtir'}</span>`:''}</td><td>${p.activo?'Activo':'Inactivo'}</td>
+ ${lista.map(p=>`<tr><td>${p.codigo}</td><td>${p.nombre}</td><td>${$$(p.precio)}</td><td>${p.stock}${p.activo&&p.stock<=limProd()?` <span class="tag">${p.stock<=0?'Agotado':'Resurtir'}</span>`:''}</td><td>${p.activo?'Activo':'Inactivo'}</td>
  <td class="right"><button class="sec" onclick="editarProd('${p.codigo}')">Editar</button>
  ${esAdmin()?`<button class="sec" onclick="toggleProd('${p.codigo}')">${p.activo?'Desactivar':'Activar'}</button><button class="bad" onclick="eliminarProd('${p.codigo}')">Eliminar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6">Sin resultados</td></tr>'}</table></div>`}
 
