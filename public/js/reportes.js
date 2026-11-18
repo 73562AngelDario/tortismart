@@ -29,22 +29,11 @@ function generarVentasEjemplo(){
    const f=new Date(d.getFullYear(),d.getMonth(),d.getDate(),7+Math.floor(rnd()*13),Math.floor(rnd()*60),Math.floor(rnd()*60));
    out.push({uid:'ej-'+ymd+'-'+String(i).padStart(2,'0'),ts:f.toISOString(),total:items.reduce((x,y)=>x+y.precio*y.cant,0),pago,usuario:rnd()<0.7?'empleado':'admin',items})}}
  return out}
-function agregarVentasEjemplo(){
- if(!esAdmin())return;
- if(DB.config.ventasEjemplo){flash('Las ventas de ejemplo ya estaban agregadas','err');return render()}
- if(!confirm('Se agregarán ventas de ejemplo de septiembre y octubre 2026 (aprox. 1,000 ventas) para llenar los reportes.\n\nPuedes quitarlas después con el botón "Quitar ventas de ejemplo".\n¿Continuar?'))return;
- const v=generarVentasEjemplo();
- v.forEach(x=>DB.ventas.push({...x,sync:false}));
- DB.config.ventasEjemplo=true;save();repKey='';
- flash(`${v.length} ventas de ejemplo agregadas (septiembre y octubre)`);render()}
-async function quitarVentasEjemplo(){
- if(!confirm('¿Quitar todas las ventas de ejemplo? Tus ventas reales no se borran.'))return;
- try{const r=await api('/ventas-ejemplo',{method:'DELETE'});
-  DB.ventas=DB.ventas.filter(x=>!String(x.uid).startsWith('ej-'));
-  DB.config.ventasEjemplo=false;save();repKey='';
-  flash(`${r.borradas} ventas de ejemplo eliminadas`)}
- catch(e){flash(e.message||'No se pudieron quitar','err')}
- render()}
+/* Los datos de septiembre y octubre se cargan solos, una sola vez (las ventas 'ej-' no se duplican) */
+function autoVentasEjemplo(){
+ if(DB.config.ventasEjemplo)return;
+ generarVentasEjemplo().forEach(x=>DB.ventas.push({...x,sync:false}));
+ DB.config.ventasEjemplo=true;save()}
 function reportesView(){
  const[a,b]=rango(),key=a+'|'+b;
  if(repKey!==key){repKey=key;repRes=null;cargarReporte(a,b,key)}
@@ -57,7 +46,11 @@ function reportesView(){
  <table><tr><th>Forma de pago</th><th class="right">Ingresos</th></tr>
  <tr><td>Efectivo</td><td class="right">${$$(p.efectivo||0)}</td></tr>
  <tr><td>Transferencia</td><td class="right">${$$(p.transferencia||0)}</td></tr>
- <tr><td>Terminal</td><td class="right">${$$(p.terminal||0)}</td></tr></table>`}
+ <tr><td>Terminal</td><td class="right">${$$(p.terminal||0)}</td></tr></table>
+ <h3 style="margin-top:1.2rem">Qué se vendió</h3>
+ ${repRes.tortillaKg>0?`<p>Tortilla vendida: <b>${fmtKg(repRes.tortillaKg)} kg</b></p>`:''}
+ <table><tr><th>Producto</th><th class="right">Cantidad</th><th class="right">Importe</th></tr>
+ ${(repRes.productos||[]).map(x=>`<tr><td>${esc(x.nombre)}</td><td class="right">${fmtKg2(x.cant)}</td><td class="right">${$$(x.importe)}</td></tr>`).join('')||'<tr><td colspan="3">Sin detalle</td></tr>'}</table>`}
  const mer=(DB.mermas||[]).filter(m=>m.fecha>=a&&m.fecha<=b);
  const mSacos=mer.reduce((s,m)=>s+m.sacos,0),mKg=mer.reduce((s,m)=>s+m.kgTortilla,0),mCosto=mer.reduce((s,m)=>s+(m.costo||0),0);
  const mermaHTML=`<div class="card"><h3>Pérdidas por merma</h3>${mer.length?`<p><b>${fmtSacosU(mSacos)}</b> de harina y <b>${fmtKg(mKg)} kg</b> de tortilla tirados${mCosto>0?` · pérdida estimada <b>${$$(mCosto)}</b>`:''} · ${mer.length} registro${mer.length>1?'s':''}</p>
@@ -67,6 +60,4 @@ function reportesView(){
  <div><label>Fecha de referencia</label><input type="date" value="${repF}" onchange="repF=this.value;render()"></div>
  <button class="sec" onclick="repKey='';render()">Actualizar</button></div>
  <p style="color:var(--mut)">Del ${a} al ${b}</p>
- ${cuerpo}</div>${mermaHTML}
- <div class="card"><h3>Datos de ejemplo</h3><p style="color:var(--mut)">Llena los reportes de septiembre y octubre con ventas falsas para probar el sistema.</p>
- ${DB.config.ventasEjemplo?'<button class="bad" onclick="quitarVentasEjemplo()">Quitar ventas de ejemplo</button>':'<button class="sec" onclick="agregarVentasEjemplo()">Agregar ventas de ejemplo (sep y oct)</button>'}</div>`}
+ ${cuerpo}</div>${mermaHTML}`}

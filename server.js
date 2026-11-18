@@ -239,7 +239,24 @@ app.get('/api/reporte', auth, async (req, res) => {
     );
     const porPago = {}; let n = 0, total = 0;
     for (const x of r) { porPago[x.pago] = Number(x.t); n += Number(x.n); total += Number(x.t); }
-    res.json({ n, total, porPago });
+
+    // Qué se vendió: se agrupan los artículos de todos los tickets del rango
+    const [v] = await db.query('SELECT items FROM ts_ventas WHERE ts_ms BETWEEN ? AND ?', [desde, hasta]);
+    const mapa = {}; let tortillaKg = 0;
+    for (const fila of v) {
+      let items = [];
+      try { items = JSON.parse(fila.items); } catch { continue; }
+      for (const i of items) {
+        const nombre = String(i.nombre || 'Sin nombre');
+        const cant = Number(i.cant) || 0, precio = Number(i.precio) || 0;
+        const m = mapa[nombre] || (mapa[nombre] = { nombre, cant: 0, importe: 0 });
+        m.cant += cant;
+        m.importe += precio * cant;
+        tortillaKg += (Number(i.tkg) || 0) * cant;
+      }
+    }
+    const productos = Object.values(mapa).sort((a, b) => b.importe - a.importe);
+    res.json({ n, total, porPago, productos, tortillaKg });
   } catch (e) { fallo(res, e); }
 });
 

@@ -17,7 +17,8 @@ async function cargarEstado(){
  DB=Object.assign(defaults(),d.data||{});
  DB.ventas=(d.ventas||[]).map(x=>({...x,sync:true}));
  normalizar();
- if(!d.data)save()}
+ if(!d.data)save();
+ autoVentasEjemplo()}
 
 function save(){sucio=true;if(guardando){otraVez=true;return}empujar()}
 
