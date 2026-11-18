@@ -68,6 +68,20 @@ async function enviarWA(t){
    window.open(`https://wa.me/${num}?text=${encodeURIComponent(t)}`,'_blank')}
   else flash(e.message||'No se pudo enviar el mensaje','err')}
  render()}
+function estadoStock(st,lim){
+ if(st<=0)return'<span class="tag">Agotado</span>';
+ if(st<=lim)return'<span class="tag" style="background:var(--warn);color:#2a1d05">Bajo</span>';
+ return'<span class="tag uso">Bien</span>'}
+function existenciasHTML(){
+ const sacos=activas().map(([k,m])=>{const st=DB.insumos[k].stock;
+  return`<tr><td>${esc(m.n)}</td><td class="right"><b>${fmtSacos(st)}</b></td><td>${estadoStock(st,cfgAviso())}</td></tr>`}).join('');
+ const prods=DB.productos.filter(p=>p.activo).sort((a,b)=>a.stock-b.stock).map(p=>
+  `<tr><td>${esc(p.nombre)}</td><td class="right"><b>${p.stock}</b></td><td>${estadoStock(p.stock,LIM_PROD)}</td></tr>`).join('');
+ return`<div class="grid">
+ <div class="card"><h3>Sacos de harina</h3><table><tr><th>Marca</th><th class="right">Sacos</th><th>Estado</th></tr>${sacos||'<tr><td colspan="3">Sin marcas</td></tr>'}</table>
+ <p><small>Total: ${fmtSacosU(totalHarina())} · "Bajo" cuando quedan ${txtSacos(cfgAviso())} o menos</small></p></div>
+ <div class="card"><h3>Productos de tienda</h3><table><tr><th>Producto</th><th class="right">Existencia</th><th>Estado</th></tr>${prods||'<tr><td colspan="3">Sin productos</td></tr>'}</table>
+ <p><small>"Bajo" cuando quedan ${LIM_PROD} unidades o menos</small></p></div></div>`}
 function alertasView(){
  const al=calcAlertas();
  return`<h2>Alertas</h2>
@@ -80,5 +94,6 @@ function alertasView(){
  <label>Nueva contraseña del empleado</label><input id="pe1" type="password" autocomplete="new-password">
  <label>Repite la nueva contraseña</label><input id="pe2" type="password" autocomplete="new-password">
  <label>Tu contraseña de administrador (para confirmar)</label><input id="pea" type="password" autocomplete="current-password">
- <br><br><button onclick="cambiarPassEmpleado()">Cambiar contraseña</button></div></div>`}
+ <br><br><button onclick="cambiarPassEmpleado()">Cambiar contraseña</button></div></div>
+ <h3 style="margin:1.2rem 0 .6rem">Existencias</h3>${existenciasHTML()}`}
 
