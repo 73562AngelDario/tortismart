@@ -23,9 +23,13 @@ function reportesView(){
  <tr><td>Efectivo</td><td class="right">${$$(p.efectivo||0)}</td></tr>
  <tr><td>Transferencia</td><td class="right">${$$(p.transferencia||0)}</td></tr>
  <tr><td>Terminal</td><td class="right">${$$(p.terminal||0)}</td></tr></table>`}
+ const mer=(DB.mermas||[]).filter(m=>m.fecha>=a&&m.fecha<=b);
+ const mSacos=mer.reduce((s,m)=>s+m.sacos,0),mKg=mer.reduce((s,m)=>s+m.kgTortilla,0),mCosto=mer.reduce((s,m)=>s+(m.costo||0),0);
+ const mermaHTML=`<div class="card"><h3>Pérdidas por merma</h3>${mer.length?`<p><b>${fmtSacosU(mSacos)}</b> de harina y <b>${fmtKg(mKg)} kg</b> de tortilla tirados${mCosto>0?` · pérdida estimada <b>${$$(mCosto)}</b>`:''} · ${mer.length} registro${mer.length>1?'s':''}</p>
+ <table><tr><th>Fecha</th><th>Saco</th><th class="right">Sacos</th><th class="right">Tortilla (kg)</th><th class="right">Pérdida</th><th>Motivo</th></tr>${mer.map(m=>`<tr><td>${m.fecha}</td><td>${MARCAS[m.marca]?MARCAS[m.marca].n:m.marca}</td><td class="right">${fmtSacos(m.sacos)}</td><td class="right">${fmtKg(m.kgTortilla)}</td><td class="right">${m.costo>0?$$(m.costo):'—'}</td><td>${esc(m.motivo)}${m.nota?' · '+esc(m.nota):''}</td></tr>`).join('')}</table>`:'<p style="color:var(--mut)">Sin mermas en el periodo</p>'}</div>`;
  return`<h2>Reportes de ventas</h2><div class="card"><div class="row">
  <div><label>Periodo</label><select onchange="repP=this.value;render()">${['diario','semanal','mensual'].map(p=>`<option ${p===repP?'selected':''}>${p}</option>`).join('')}</select></div>
  <div><label>Fecha de referencia</label><input type="date" value="${repF}" onchange="repF=this.value;render()"></div>
  <button class="sec" onclick="repKey='';render()">Actualizar</button></div>
  <p style="color:var(--mut)">Del ${a} al ${b}</p>
- ${cuerpo}</div>`}
+ ${cuerpo}</div>${mermaHTML}`}

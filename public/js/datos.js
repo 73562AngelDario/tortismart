@@ -30,13 +30,13 @@ function defaults(){return{
   {n:'$10 tortilla',p:10},{n:'$20 tortilla',p:20},{n:'$50 tortilla',p:50},
   {n:'1 kg tortilla',p:28},{n:'1/2 kg tortilla',p:14},{n:'Masa 1 kg',p:20},{n:'Totopos',p:30}],
  insumos:{maseca:{n:'Saco Maseca 20 kg',stock:10},minsa:{n:'Saco Minsa 20 kg',stock:10},harimasa:{n:'Saco Harimasa 20 kg',stock:10},maiz:{n:'Maíz (kg)',stock:100},papel:{n:'Papel (kg)',stock:20}},
- marcasExtra:{},lotes:[],compras:[],produccion:[],ventas:[],
+ marcasExtra:{},mermas:[],lotes:[],compras:[],produccion:[],ventas:[],
  config:{minHarina:3,whatsapp:''}};}
 let DB=defaults();
 function normalizar(){
  delete DB.insumos.gas;
  if(DB.insumos.harina){delete DB.insumos.harina}
- DB.marcasExtra=DB.marcasExtra||{};DB.lotes=DB.lotes||[];DB.ventas=DB.ventas||[];
+ DB.marcasExtra=DB.marcasExtra||{};DB.mermas=DB.mermas||[];DB.lotes=DB.lotes||[];DB.ventas=DB.ventas||[];
  DB.compras=DB.compras||[];DB.produccion=DB.produccion||[];DB.entradasProd=DB.entradasProd||[];
  Object.assign(MARCAS,DB.marcasExtra);
  for(const [k,n] of [['maseca','Saco Maseca 20 kg'],['minsa','Saco Minsa 20 kg'],['harimasa','Saco Harimasa 20 kg']])if(!DB.insumos[k])DB.insumos[k]={n,stock:10};
