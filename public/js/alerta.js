@@ -4,9 +4,24 @@ function diasRestantes(k,campo){
  const dias=new Set(DB.produccion.filter(x=>x[campo]>0).map(x=>x.fecha)).size;
  if(!cons||!dias)return null;
  return DB.insumos[k].stock/(cons/dias)}
+/* Cuántos sacos conviene comprar de una marca: según lo que se ha usado en los últimos 14 días */
+const cfgAviso=()=>{const n=parseFloat(DB.config.avisoSaco);return isNaN(n)?2:n};
+const cfgDias=()=>Math.max(1,parseInt(DB.config.diasCompra)||7);
+const txtSacos=n=>n+(n===1?' saco':' sacos');
+function sugerirCompra(k){
+ const lim=new Date();lim.setDate(lim.getDate()-14);const desde=fmtD(lim);
+ const regs=DB.produccion.filter(x=>(x.marca||'maseca')===k&&x.fecha>=desde);
+ const dias=new Set(regs.map(x=>x.fecha)).size;
+ if(!dias)return 5;
+ const prom=regs.reduce((s,x)=>s+x.sacos,0)/dias;
+ return Math.max(1,Math.ceil(prom*cfgDias()-DB.insumos[k].stock))}
 function calcAlertas(){
  const a=[],h=totalHarina(),min=DB.config.minHarina;
  if(h<=min)a.push({nivel:h<min?'r':'y',t:`Quedan ${fmtSacosU(h)} de harina en total. Stock crítico`});
+ activas().forEach(([k,m])=>{
+  const st=DB.insumos[k].stock,n=sugerirCompra(k);
+  if(st<=0)a.push({nivel:'r',t:`Se acabó el saco ${m.n}. Compra aprox. ${txtSacos(n)}`});
+  else if(st<=cfgAviso())a.push({nivel:'y',t:`Quedan ${fmtSacosU(st)} de ${m.n}. Compra aprox. ${txtSacos(n)}`})});
  if(DB.lotes.length){const d=tortillaDisp(),t=lotesActivos().reduce((x,l)=>x+l.kgTotal,0);
   if(d<=0.0005)a.push({nivel:'r',t:'Ya no hay más tortillas registradas. Registra una nueva producción'});
   else if(d/t<=0.15)a.push({nivel:'y',t:`Quedan pocas tortillas: ${fmtKg(d)} kg`})}
@@ -15,7 +30,7 @@ function calcAlertas(){
  if(!a.length)a.push({nivel:'g',t:'Sin alertas por el momento'});
  return a}
 function guardarCfg(){
- DB.config.minHarina=parseFloat(v('mh'))||3;DB.config.whatsapp=v('wa').trim();save();flash('Configuración guardada');render()}
+ DB.config.minHarina=parseFloat(v('mh'))||3;DB.config.avisoSaco=Math.max(0,parseFloat(v('as')));if(isNaN(DB.config.avisoSaco))DB.config.avisoSaco=2;DB.config.diasCompra=Math.max(1,parseInt(v('dc'))||7);DB.config.whatsapp=v('wa').trim();save();flash('Configuración guardada');render()}
 async function cambiarPassEmpleado(){
  const a=v('pea'),n1=v('pe1'),n2=v('pe2');
  if(!a||!n1||!n2){flash('Completa los tres campos','err');return render()}
@@ -25,14 +40,19 @@ async function cambiarPassEmpleado(){
   flash('Contraseña del empleado actualizada. Avísale la nueva contraseña.')}
  catch(e){flash(e.message||'No se pudo cambiar la contraseña','err')}
  render()}
-function enviarWA(t){
+async function enviarWA(t){
  if(!DB.config.whatsapp){flash('Registra primero el número de WhatsApp','err');return render()}
- window.open(`https://wa.me/${DB.config.whatsapp}?text=${encodeURIComponent(t)}`,'_blank')}
+ try{await api('/whatsapp',{method:'POST',body:JSON.stringify({phone:DB.config.whatsapp,texto:'TortiSmart: '+t})});
+  flash('Alerta enviada por WhatsApp')}
+ catch(e){flash(e.message||'No se pudo enviar el mensaje','err')}
+ render()}
 function alertasView(){
  const al=calcAlertas();
  return`<h2>Alertas</h2>
  ${al.map(a=>`<div class="alert ${a.nivel}">${a.t}${a.nivel!=='g'?` <button class="sec" style="float:right" onclick="enviarWA(${JSON.stringify(a.t).replace(/"/g,'&quot;')})">WhatsApp</button>`:''}</div>`).join('')}
  <div class="grid"> <div class="card"><h3>Configuración</h3><label>Stock mínimo de harina (sacos)</label><input id="mh" type="number" value="${DB.config.minHarina}">
+ <label>Avisar cuando queden este número de sacos de una marca</label><input id="as" type="number" min="0" step="0.5" value="${cfgAviso()}">
+ <label>Calcular la compra para cuántos días de producción</label><input id="dc" type="number" min="1" step="1" value="${cfgDias()}">
  <label>WhatsApp del dueño (con lada, ej. 529811234567)</label><input id="wa" value="${DB.config.whatsapp}"><br><br><button onclick="guardarCfg()">Guardar</button></div>
  <div class="card"><h3>Contraseña del empleado</h3>
  <label>Nueva contraseña del empleado</label><input id="pe1" type="password" autocomplete="new-password">
