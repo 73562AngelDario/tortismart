@@ -204,13 +204,17 @@ app.put('/api/estado', auth, async (req, res) => {
       await conn.query('UPDATE ts_estado SET version=?, datos=? WHERE id=1', [nueva, JSON.stringify(data)]);
     }
 
+    const filas = [];
     for (const x of Array.isArray(ventas) ? ventas : []) {
       const ms = new Date(x.ts).getTime();
       if (!x.uid || !Number.isFinite(ms) || !(Number(x.total) >= 0)) continue;
+      filas.push([String(x.uid).slice(0, 60), ms, Number(x.total), String(x.pago || '').slice(0, 20),
+        String(x.usuario || '').slice(0, 50), JSON.stringify(x.items || [])]);
+    }
+    for (let i = 0; i < filas.length; i += 200) {
       await conn.query(
-        'INSERT IGNORE INTO ts_ventas (uid, ts_ms, total, pago, usuario, items) VALUES (?,?,?,?,?,?)',
-        [String(x.uid).slice(0, 60), ms, Number(x.total), String(x.pago || '').slice(0, 20),
-         String(x.usuario || '').slice(0, 50), JSON.stringify(x.items || [])]
+        'INSERT IGNORE INTO ts_ventas (uid, ts_ms, total, pago, usuario, items) VALUES ?',
+        [filas.slice(i, i + 200)]
       );
     }
 
@@ -236,6 +240,61 @@ app.get('/api/reporte', auth, async (req, res) => {
     const porPago = {}; let n = 0, total = 0;
     for (const x of r) { porPago[x.pago] = Number(x.t); n += Number(x.n); total += Number(x.t); }
     res.json({ n, total, porPago });
+  } catch (e) { fallo(res, e); }
+});
+
+// Cambiar la contraseña del empleado (solo administrador, confirmando su propia contraseña)
+app.post('/api/empleado/pass', auth, async (req, res) => {
+  try {
+    const [a] = await db.query('SELECT * FROM ts_usuarios WHERE usuario=? AND activo=1', [req.u.user]);
+    if (!a[0] || a[0].rol !== 'admin') return res.status(403).json({ error: 'Solo el administrador puede hacer esto' });
+
+    const miPass = String(req.body.miPass || '');
+    const nueva = String(req.body.nueva || '');
+    if (!checkPass(miPass, a[0].pass_hash)) return res.status(401).json({ error: 'Tu contraseña de administrador es incorrecta' });
+    if (nueva.length < 6) return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    if (nueva.length > 100) return res.status(400).json({ error: 'La contraseña es demasiado larga' });
+
+    const [r] = await db.query(
+      "UPDATE ts_usuarios SET pass_hash=?, fallos=0, bloqueado_hasta=0 WHERE rol='trabajador'",
+      [hashPass(nueva)]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'No se encontró al empleado' });
+    res.json({ ok: true });
+  } catch (e) { fallo(res, e); }
+});
+
+// Enviar alerta por WhatsApp sin abrir WhatsApp (servicio CallMeBot, solo administrador)
+app.post('/api/whatsapp', auth, async (req, res) => {
+  try {
+    if (req.u.rol !== 'admin') return res.status(403).json({ error: 'Solo el administrador puede enviar alertas' });
+    const key = process.env.CALLMEBOT_APIKEY;
+    if (!key) return res.status(503).json({ error: 'Falta configurar CALLMEBOT_APIKEY en Vercel' });
+    const phone = String(req.body.phone || '').replace(/\D/g, '');
+    const texto = String(req.body.texto || '').slice(0, 500);
+    if (!phone || !texto) return res.status(400).json({ error: 'Falta el número o el mensaje' });
+
+    const url = 'https://api.callmebot.com/whatsapp.php?phone=' + encodeURIComponent('+' + phone) +
+      '&text=' + encodeURIComponent(texto) + '&apikey=' + encodeURIComponent(key);
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 15000);
+    let r, cuerpo = '';
+    try { r = await fetch(url, { signal: ctl.signal }); cuerpo = await r.text(); }
+    finally { clearTimeout(t); }
+    if (!r.ok || /error|invalid|not\s+activated/i.test(cuerpo.slice(0, 400)) && !/queued|sent/i.test(cuerpo)) {
+      console.error('CallMeBot:', r.status, cuerpo.slice(0, 300));
+      return res.status(502).json({ error: 'WhatsApp no aceptó el mensaje. Revisa el número y la clave de CallMeBot.' });
+    }
+    res.json({ ok: true });
+  } catch (e) { fallo(res, e); }
+});
+
+// Borrar las ventas de ejemplo (las que empiezan con "ej-"), solo administrador
+app.delete('/api/ventas-ejemplo', auth, async (req, res) => {
+  try {
+    if (req.u.rol !== 'admin') return res.status(403).json({ error: 'Solo el administrador puede hacer esto' });
+    const [r] = await db.query("DELETE FROM ts_ventas WHERE uid LIKE 'ej-%'");
+    res.json({ borradas: r.affectedRows });
   } catch (e) { fallo(res, e); }
 });
 
