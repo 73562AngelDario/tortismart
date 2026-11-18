@@ -1,5 +1,5 @@
 /* ============ MATERIA PRIMA (CU004) ============ */
-let prodPend=null,prodMarca=null,nuevaMarca=false,mermaAbierta=false;
+let prodPend=null,prodMarca=null,nuevaMarca=false,mermaAbierta=false,verTodasCompras=false;
 function registrarCompra(){
  const k=v('ci'),q=parseFloat(v('cq')),f=v('cf');
  if(!k||!f||v('cq')===''){flash('Insumo, cantidad y fecha son obligatorios','err');return render()}
@@ -120,7 +120,9 @@ function insumosView(){
  <label>Cantidad</label><input id="cq" type="number" min="0" step="any"><label>Fecha</label><input id="cf" type="date" value="${hoy()}">
  <br><button onclick="registrarCompra()">Guardar compra</button></div>
  <div class="card"><h3>Últimas compras</h3><table><tr><th>Fecha</th><th>Insumo</th><th>Cantidad</th><th>Usuario</th></tr>
- ${DB.compras.slice(-8).reverse().map(c=>`<tr><td>${c.fecha}</td><td>${ins[c.insumo]?ins[c.insumo].n:c.insumo}</td><td>${c.cant}</td><td>${c.usuario}</td></tr>`).join('')||'<tr><td colspan="4">Sin registros</td></tr>'}</table></div></div>
+ ${DB.compras.slice(verTodasCompras?0:-8).reverse().map(c=>`<tr><td>${c.fecha}</td><td>${ins[c.insumo]?ins[c.insumo].n:c.insumo}</td><td>${c.cant}</td><td>${c.usuario}</td></tr>`).join('')||'<tr><td colspan="4">Sin registros</td></tr>'}</table>
+ <div class="row" style="margin-top:.8rem"><button class="sec" onclick="verTodasCompras=!verTodasCompras;render()">${verTodasCompras?'Ver solo las últimas':'Ver todas las compras'}</button>
+ ${esAdmin()&&!DB.compras.some(c=>c.ejemplo)?'<button class="sec" onclick="cargarComprasEjemplo()">Agregar compras de ejemplo (sep y oct)</button>':''}</div></div></div>
 
  <div class="card"><h3>Mermas registradas (sacos / producción tirada)</h3><table><tr><th>Fecha</th><th>Saco</th><th>Sacos</th><th>Tortilla (kg)</th><th>Pérdida</th><th>Motivo</th><th>Usuario</th></tr>
  ${(DB.mermas||[]).slice(-8).reverse().map(m=>`<tr><td>${m.fecha}</td><td>${MARCAS[m.marca]?MARCAS[m.marca].n:m.marca}</td><td>${fmtSacos(m.sacos)}</td><td>${fmtKg(m.kgTortilla)}</td><td>${m.costo>0?$$(m.costo):'—'}</td><td>${esc(m.motivo)}${m.nota?' · '+esc(m.nota):''}</td><td>${m.usuario}</td></tr>`).join('')||'<tr><td colspan="7">Sin mermas</td></tr>'}</table></div>
@@ -172,3 +174,18 @@ function registrarMerma(){
  DB.mermas.push({id:Date.now(),fecha:hoy(),marca:k,sacos:sc,kgTortilla:Math.round(kgT*1000)/1000,costo,motivo,nota,usuario:sesion.user});
  mermaAbierta=false;save();
  flash(`Merma registrada · ${fmtSacosU(sc)} de ${MARCAS[k].n}`+(kgT>0?` · ${fmtKg(kgT)} kg de tortilla tirada`:'')+(costo>0?` · Pérdida ${$$(costo)}`:''));render()}
+
+/* --- Compras de ejemplo de septiembre y octubre (solo historial: NO cambian las existencias) --- */
+function cargarComprasEjemplo(){
+ if(!esAdmin())return;
+ if(DB.compras.some(c=>c.ejemplo)){flash('Las compras de ejemplo ya estaban agregadas','err');return render()}
+ if(!confirm('Se agregarán compras de ejemplo de septiembre y octubre 2026 al historial.\nNo cambian tus existencias actuales.\n¿Continuar?'))return;
+ const plan=[
+  ['2026-09-02','maseca',10],['2026-09-05','maiz',60],['2026-09-09','minsa',8],['2026-09-16','maseca',10],
+  ['2026-09-19','harimasa',6],['2026-09-23','maiz',40],['2026-09-30','minsa',8],
+  ['2026-10-03','maseca',10],['2026-10-07','harimasa',6],['2026-10-10','maiz',50],['2026-10-14','minsa',8],
+  ['2026-10-17','maseca',10],['2026-10-21','harimasa',6],['2026-10-24','maiz',40],['2026-10-28','minsa',8],['2026-10-31','maseca',10]];
+ let n=0;
+ for(const [fecha,insumo,cant] of plan){if(!DB.insumos[insumo])continue;DB.compras.push({fecha,insumo,cant,usuario:sesion.user,ejemplo:true});n++}
+ DB.compras.sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+ save();flash(`${n} compras de ejemplo agregadas (septiembre y octubre)`);render()}
