@@ -123,6 +123,13 @@ const fallo = (res, e) => {
 app.get('/api/salud', (req, res) => res.json({ ok: true, hora: new Date().toISOString() }));
 
 // Login
+const MAX_FALLOS = 3;
+const BLOQUEO_MS = 5 * 60 * 1000; // 5 minutos
+const textoEspera = ms => {
+  const seg = Math.ceil(ms / 1000);
+  return seg > 60 ? Math.ceil(seg / 60) + ' minutos' : seg + ' segundos';
+};
+
 app.post('/api/login', async (req, res) => {
   try {
     const user = String(req.body.user || '').trim();
@@ -133,20 +140,20 @@ app.post('/api/login', async (req, res) => {
     const u = rows[0];
 
     if (u && Number(u.bloqueado_hasta) > Date.now()) {
-      const seg = Math.ceil((Number(u.bloqueado_hasta) - Date.now()) / 1000);
-      return res.status(429).json({ error: `Acceso bloqueado. Intenta en ${seg} s` });
+      return res.status(429).json({ error: `Acceso bloqueado por intentos fallidos. Intenta de nuevo en ${textoEspera(Number(u.bloqueado_hasta) - Date.now())}` });
     }
 
     if (!u || !checkPass(pass, u.pass_hash)) {
       if (u) {
         const f = u.fallos + 1;
-        if (f >= 3) {
-          await db.query('UPDATE ts_usuarios SET fallos=0, bloqueado_hasta=? WHERE id=?', [Date.now() + 60000, u.id]);
-          return res.status(429).json({ error: '3 intentos fallidos. Acceso bloqueado 1 minuto' });
+        if (f >= MAX_FALLOS) {
+          await db.query('UPDATE ts_usuarios SET fallos=0, bloqueado_hasta=? WHERE id=?', [Date.now() + BLOQUEO_MS, u.id]);
+          return res.status(429).json({ error: '3 intentos fallidos. Acceso bloqueado 5 minutos' });
         }
         await db.query('UPDATE ts_usuarios SET fallos=? WHERE id=?', [f, u.id]);
       }
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+      const quedan = u ? MAX_FALLOS - (u.fallos + 1) : null;
+      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' + (quedan > 0 ? `. Te quedan ${quedan} ${quedan === 1 ? 'intento' : 'intentos'}` : '') });
     }
 
     await db.query('UPDATE ts_usuarios SET fallos=0, bloqueado_hasta=0 WHERE id=?', [u.id]);
