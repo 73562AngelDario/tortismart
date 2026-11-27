@@ -1,6 +1,6 @@
 /* ============ LOGIN / LOGOUT (CU001, CU008) ============ */
 function loginView(){
- return`<div class="login"><img class="login-logo" src="img/logo.png" alt="TortiSmart"><p class="sub">Tortillería · Punto de venta</p>
+ return`<div class="login"><img class="login-logo" src="img/logo.png" alt="TortiSmart">
  ${msgHTML()}
  <label>Usuario</label><input id="u" autofocus>
  <label>Contraseña</label><input id="p" type="password" onkeydown="if(event.key==='Enter')login()">
