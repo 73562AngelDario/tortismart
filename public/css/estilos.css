@@ -12,6 +12,7 @@ h2{margin:.2rem 0 1.1rem;font-size:1.5rem}h3{margin:.2rem 0 .7rem}
 body:has(.login){background:linear-gradient(135deg,#1f5c3a 0%,#164a2e 55%,#e2a33b 160%);min-height:100vh}
 .login{max-width:380px;margin:9vh auto;background:var(--card);padding:2.2rem 2rem;border-radius:22px;box-shadow:0 20px 50px #0004;text-align:center}
 .login h2{margin:.5rem 0 0;font-size:1.7rem;color:var(--pri)}
+.login-logo{display:block;width:100%;max-width:230px;height:auto;margin:0 auto .3rem}
 .login .sub{color:var(--mut);margin:0 0 1rem;font-size:.9rem}
 .login label{text-align:left}
 .login .msg{margin:.8rem 0 0}
