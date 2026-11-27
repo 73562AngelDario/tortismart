@@ -123,13 +123,6 @@ const fallo = (res, e) => {
 app.get('/api/salud', (req, res) => res.json({ ok: true, hora: new Date().toISOString() }));
 
 // Login
-const MAX_FALLOS = 3;
-const BLOQUEO_MS = 5 * 60 * 1000; // 5 minutos
-const textoEspera = ms => {
-  const seg = Math.ceil(ms / 1000);
-  return seg > 60 ? Math.ceil(seg / 60) + ' minutos' : seg + ' segundos';
-};
-
 app.post('/api/login', async (req, res) => {
   try {
     const user = String(req.body.user || '').trim();
@@ -140,20 +133,20 @@ app.post('/api/login', async (req, res) => {
     const u = rows[0];
 
     if (u && Number(u.bloqueado_hasta) > Date.now()) {
-      return res.status(429).json({ error: `Acceso bloqueado por intentos fallidos. Intenta de nuevo en ${textoEspera(Number(u.bloqueado_hasta) - Date.now())}` });
+      const seg = Math.ceil((Number(u.bloqueado_hasta) - Date.now()) / 1000);
+      return res.status(429).json({ error: `Acceso bloqueado. Intenta en ${seg} s` });
     }
 
     if (!u || !checkPass(pass, u.pass_hash)) {
       if (u) {
         const f = u.fallos + 1;
-        if (f >= MAX_FALLOS) {
-          await db.query('UPDATE ts_usuarios SET fallos=0, bloqueado_hasta=? WHERE id=?', [Date.now() + BLOQUEO_MS, u.id]);
-          return res.status(429).json({ error: '3 intentos fallidos. Acceso bloqueado 5 minutos' });
+        if (f >= 3) {
+          await db.query('UPDATE ts_usuarios SET fallos=0, bloqueado_hasta=? WHERE id=?', [Date.now() + 60000, u.id]);
+          return res.status(429).json({ error: '3 intentos fallidos. Acceso bloqueado 1 minuto' });
         }
         await db.query('UPDATE ts_usuarios SET fallos=? WHERE id=?', [f, u.id]);
       }
-      const quedan = u ? MAX_FALLOS - (u.fallos + 1) : null;
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' + (quedan > 0 ? `. Te quedan ${quedan} ${quedan === 1 ? 'intento' : 'intentos'}` : '') });
+      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
     }
 
     await db.query('UPDATE ts_usuarios SET fallos=0, bloqueado_hasta=0 WHERE id=?', [u.id]);
@@ -263,7 +256,27 @@ app.get('/api/reporte', auth, async (req, res) => {
       }
     }
     const productos = Object.values(mapa).sort((a, b) => b.importe - a.importe);
-    res.json({ n, total, porPago, productos, tortillaKg });
+
+    // Para las gráficas: ventas por día y por hora, en la zona horaria del navegador.
+    // tz = minutos como los da getTimezoneOffset() (México: 360). Se agrupa con aritmética
+    // sobre ts_ms, así no depende de la zona horaria de MySQL.
+    const tz = Number(req.query.tz);
+    const off = Number.isFinite(tz) ? -tz * 60000 : 0;
+    const [pd] = await db.query(
+      'SELECT FLOOR((ts_ms + ?) / 86400000) AS d, COUNT(*) AS n, SUM(total) AS t FROM ts_ventas WHERE ts_ms BETWEEN ? AND ? GROUP BY d ORDER BY d',
+      [off, desde, hasta]
+    );
+    const porDia = pd.map(x => ({
+      dia: new Date(Number(x.d) * 86400000).toISOString().slice(0, 10),
+      n: Number(x.n), total: Number(x.t)
+    }));
+    const [ph] = await db.query(
+      'SELECT FLOOR(MOD(ts_ms + ?, 86400000) / 3600000) AS h, COUNT(*) AS n, SUM(total) AS t FROM ts_ventas WHERE ts_ms BETWEEN ? AND ? GROUP BY h ORDER BY h',
+      [off, desde, hasta]
+    );
+    const porHora = ph.map(x => ({ h: Number(x.h), n: Number(x.n), total: Number(x.t) }));
+
+    res.json({ n, total, porPago, productos, tortillaKg, porDia, porHora });
   } catch (e) { fallo(res, e); }
 });
 
