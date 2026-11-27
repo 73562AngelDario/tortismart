@@ -7,7 +7,7 @@ function rango(){
  return[fmtD(a),fmtD(b)]}
 function cargarReporte(a,b,key){
  const d1=new Date(a+'T00:00:00').getTime(),d2=new Date(b+'T23:59:59.999').getTime();
- api('/reporte?desde='+d1+'&hasta='+d2)
+ api('/reporte?desde='+d1+'&hasta='+d2+'&tz='+new Date().getTimezoneOffset())
   .then(r=>{if(repKey===key){repRes=r;render()}})
   .catch(e=>{if(repKey===key){repRes={error:e.message};render()}})}
 /* --- Ventas de ejemplo (septiembre y octubre 2026) --- */
@@ -34,6 +34,34 @@ function autoVentasEjemplo(){
  if(DB.config.ventasEjemplo)return;
  generarVentasEjemplo().forEach(x=>DB.ventas.push({...x,sync:false}));
  DB.config.ventasEjemplo=true;save()}
+/* --- Gráfica de ventas (SVG, sin librerías): por hora si el periodo es diario, por día si es semanal o mensual --- */
+function pasoBonito(x){const p=Math.pow(10,Math.floor(Math.log10(x||1))),f=x/p;return(f<=1?1:f<=2?2:f<=5?5:10)*p}
+function graficaVentas(r){
+ const[a,b]=rango(),dn=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];let datos=[],tit;
+ if(repP==='diario'){
+  const m={};(r.porHora||[]).forEach(x=>m[x.h]=x);
+  const hs=Object.keys(m).map(Number);
+  for(let h=Math.min(7,...hs);h<=Math.max(20,...hs);h++){const x=m[h]||{n:0,total:0};datos.push({etq:h+'h',val:x.total,n:x.n,tip:h+':00 a '+h+':59'})}
+  tit='Ventas por hora'}
+ else{
+  const m={};(r.porDia||[]).forEach(x=>m[x.dia]=x);
+  for(const d=new Date(a+'T00:00:00'),fin=new Date(b+'T00:00:00');d<=fin;d.setDate(d.getDate()+1)){
+   const k=fmtD(d),x=m[k]||{n:0,total:0};
+   datos.push({etq:repP==='semanal'?dn[d.getDay()]+' '+d.getDate():String(d.getDate()),val:x.total,n:x.n,tip:dn[d.getDay()]+' '+k})}
+  tit='Ventas por día'}
+ const W=640,H=250,L=52,R=8,T=16,B=30,n=datos.length;
+ const vals=datos.map(d=>d.val),maxV=Math.max(...vals,0),paso=pasoBonito((maxV||1)/4),top=Math.ceil((maxV||1)/paso)*paso;
+ const bw=(W-L-R)/n,anch=Math.min(bw*.7,48),y=q=>T+(H-T-B)*(1-q/top),cada=Math.ceil(n/(repP==='semanal'?7:12));
+ let g='';
+ for(let t=0;t<=top+paso/100;t+=paso)g+=`<line x1="${L}" x2="${W-R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="#e3e0d3"/><text x="${L-6}" y="${(y(t)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="#6b7a72">$${Math.round(t)}</text>`;
+ datos.forEach((d,i)=>{
+  const x=L+bw*i+(bw-anch)/2,h=Math.max(0,y(0)-y(d.val));
+  g+=`<rect x="${x.toFixed(1)}" y="${y(d.val).toFixed(1)}" width="${anch.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${d.val===maxV&&d.val>0?'#e2a33b':'#1f5c3a'}"><title>${d.tip}: ${$$(d.val)} · ${d.n} venta${d.n===1?'':'s'}</title></rect>`;
+  if(i%cada===0)g+=`<text x="${(x+anch/2).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="11" fill="#6b7a72">${d.etq}</text>`});
+ const mejor=datos.find(d=>d.val===maxV&&maxV>0);
+ return`<h3 style="margin-top:1.2rem">${tit}</h3>
+ <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="${tit}">${g}</svg>
+ ${mejor?`<p><small>${repP==='diario'?'Hora más fuerte':'Día más fuerte'}: <b>${mejor.tip}</b> con ${$$(maxV)} (${mejor.n} ventas)</small></p>`:''}`}
 function reportesView(){
  const[a,b]=rango(),key=a+'|'+b;
  if(repKey!==key){repKey=key;repRes=null;cargarReporte(a,b,key)}
@@ -42,11 +70,11 @@ function reportesView(){
  else if(repRes.error)cuerpo=`<div class="alert r">No se pudo cargar el reporte: ${repRes.error}</div>`;
  else if(!repRes.n)cuerpo='<div class="alert y">No hay ventas registradas en el periodo seleccionado</div>';
  else{const p=repRes.porPago||{};
-  cuerpo=`<div class="big">${$$(repRes.total)}</div><p>${repRes.n} ventas</p>
- <table><tr><th>Forma de pago</th><th class="right">Ingresos</th></tr>
- <tr><td>Efectivo</td><td class="right">${$$(p.efectivo||0)}</td></tr>
- <tr><td>Transferencia</td><td class="right">${$$(p.transferencia||0)}</td></tr>
- <tr><td>Terminal</td><td class="right">${$$(p.terminal||0)}</td></tr></table>
+  cuerpo=`<div class="big">${$$(repRes.total)}</div><p>${repRes.n} ventas · ticket promedio <b>${$$(repRes.total/repRes.n)}</b></p>
+ ${graficaVentas(repRes)}
+ <h3 style="margin-top:1.2rem">Forma de pago</h3>
+ <table><tr><th>Forma de pago</th><th class="right">%</th><th class="right">Ingresos</th></tr>
+ ${[['Efectivo','efectivo'],['Transferencia','transferencia'],['Terminal','terminal']].map(([t,k])=>`<tr><td>${t}</td><td class="right">${Math.round((p[k]||0)/repRes.total*100)}%</td><td class="right">${$$(p[k]||0)}</td></tr>`).join('')}</table>
  <h3 style="margin-top:1.2rem">Qué se vendió</h3>
  ${repRes.tortillaKg>0?`<p>Tortilla vendida: <b>${fmtKg(repRes.tortillaKg)} kg</b></p>`:''}
  <table><tr><th>Producto</th><th class="right">Cantidad</th><th class="right">Importe</th></tr>
